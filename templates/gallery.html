@@ -15,7 +15,10 @@
     {% for note in notes %}
     <div class="sticky-note" style="background:var(--bg-card);border:3px solid var(--gold);padding:15px;margin-bottom:10px;position:relative;">
         <div style="font-size:14px;color:var(--gold);margin-bottom:5px;">{{ note.username }} - {{ note.created_at[:10] }}</div>
-        <div style="white-space:pre-wrap;">{{ note.content }}</div>
+        <div style="white-space:pre-wrap;margin-bottom:6px;">{{ note.content }}</div>
+        {% if note.drawing_filename %}
+        <img src="{{ url_for('uploaded_file', filename=note.drawing_filename) }}" style="max-width:200px;max-height:120px;border:2px solid var(--border);display:block;margin-bottom:6px;">
+        {% endif %}
         {% if session.role == 'admin' or session.user_id == note.user_id %}
         <form method="POST" action="{{ url_for('delete_sticky_note', note_id=note.id) }}" style="position:absolute;top:8px;right:8px;">
             <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar nota?')">✕</button>
@@ -27,9 +30,21 @@
 {% endif %}
 
 <div style="margin-bottom:30px;">
-    <form method="POST" action="{{ url_for('create_sticky_note') }}" style="display:flex;gap:10px;align-items:stretch;">
-        <textarea name="content" class="form-control" style="min-height:50px;flex:1;" placeholder="Deja una notita... ♥" required></textarea>
-        <button type="submit" class="btn btn-cyan" style="white-space:nowrap;">💌 Nota</button>
+    <form method="POST" action="{{ url_for('create_sticky_note') }}" onsubmit="saveDrawing()">
+        <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:8px;">
+            <textarea name="content" class="form-control" style="min-height:50px;flex:1;" placeholder="Deja una notita... ♥"></textarea>
+            <button type="submit" class="btn btn-cyan" style="white-space:nowrap;">💌 Nota</button>
+        </div>
+        <div id="canvas-hint" style="font-size:14px;color:var(--text-dim);margin-bottom:8px;cursor:pointer;" onclick="toggleCanvas()">✏️ Dibujar</div>
+        <canvas id="draw-canvas" style="display:none;max-width:100%;border:3px solid var(--border);cursor:crosshair;touch-action:none;"></canvas>
+        <div id="canvas-tools" style="display:none;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-sm" style="font-size:8px;padding:4px 8px;border-color:var(--gold);color:var(--gold);" onclick="setDrawColor('#d81b60')">🎨 Rosa</button>
+            <button type="button" class="btn btn-sm" style="font-size:8px;padding:4px 8px;border-color:var(--gold);color:var(--gold);" onclick="setDrawColor('#ff0000')">🔴 Rojo</button>
+            <button type="button" class="btn btn-sm" style="font-size:8px;padding:4px 8px;border-color:var(--gold);color:var(--gold);" onclick="setDrawColor('#000')">⚫ Negro</button>
+            <button type="button" class="btn btn-sm" style="font-size:8px;padding:4px 8px;border-color:var(--gold);color:var(--gold);" onclick="setDrawColor('#2196f3')">🔵 Azul</button>
+            <button type="button" class="btn btn-sm btn-danger" onclick="clearCanvas()">🗑️ Borrar</button>
+        </div>
+        <input type="hidden" name="drawing" id="drawing-input" value="">
     </form>
 </div>
 
@@ -45,6 +60,9 @@
         {% endif %}
         {% if letter.content %}
         <span class="letter-badge" style="border-color:var(--gold);color:var(--gold)">TEXTO</span>
+        {% endif %}
+        {% if letter.image_filename %}
+        <span class="letter-badge" style="border-color:var(--pink);color:var(--pink)">📷</span>
         {% endif %}
         {% if session.role == 'admin' %}
         <form class="delete-form" method="POST" action="{{ url_for('delete_letter', letter_id=letter.id) }}" onclick="event.stopPropagation()">

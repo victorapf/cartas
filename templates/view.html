@@ -10,6 +10,12 @@
     <div class="letter-content">{{ letter.content }}</div>
     {% endif %}
 
+    {% if letter.image_filename %}
+    <div style="text-align:center;margin-bottom:20px;">
+        <img src="{{ url_for('uploaded_file', filename=letter.image_filename) }}" style="max-width:100%;max-height:500px;border:3px solid var(--border);">
+    </div>
+    {% endif %}
+
     {% if letter.pdf_filename %}
     <div class="pdf-container">
         <embed src="{{ url_for('uploaded_file', filename=letter.pdf_filename) }}#view=FitH" type="application/pdf">

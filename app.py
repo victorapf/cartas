@@ -33,12 +33,14 @@ def init_db():
             title TEXT NOT NULL,
             content TEXT,
             pdf_filename TEXT,
+            image_filename TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             user_id INTEGER REFERENCES users(id)
         );
         CREATE TABLE IF NOT EXISTS sticky_notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             content TEXT NOT NULL,
+            drawing_filename TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             user_id INTEGER REFERENCES users(id)
         );
@@ -115,6 +117,7 @@ def new_letter():
 
         content = request.form.get('content', '').strip()
         pdf_filename = None
+        image_filename = None
 
         if 'pdf' in request.files:
             pdf = request.files['pdf']
@@ -123,15 +126,22 @@ def new_letter():
                 pdf_filename = f"{uuid.uuid4()}.{ext}"
                 pdf.save(os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename))
 
-        if not content and not pdf_filename:
-            return render_template('editor.html', error='Escribe algo o sube un PDF')
+        if 'image' in request.files:
+            img = request.files['image']
+            if img and img.filename:
+                ext = secure_filename(img.filename).rsplit('.', 1)[-1]
+                image_filename = f"{uuid.uuid4()}.{ext}"
+                img.save(os.path.join(app.config['UPLOAD_FOLDER'], image_filename))
+
+        if not content and not pdf_filename and not image_filename:
+            return render_template('editor.html', error='Escribe algo o sube un archivo')
 
         conn = get_db()
         max_num = conn.execute('SELECT MAX(letter_number) FROM letters').fetchone()[0]
         letter_number = (max_num or 0) + 1
         conn.execute(
-            'INSERT INTO letters (letter_number, title, content, pdf_filename, user_id) VALUES (?, ?, ?, ?, ?)',
-            (letter_number, title, content, pdf_filename, session['user_id']))
+            'INSERT INTO letters (letter_number, title, content, pdf_filename, image_filename, user_id) VALUES (?, ?, ?, ?, ?, ?)',
+            (letter_number, title, content, pdf_filename, image_filename, session['user_id']))
         conn.commit()
         conn.close()
         flash('Carta guardada', 'success')
@@ -162,10 +172,20 @@ def create_sticky_note():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     content = request.form.get('content', '').strip()
-    if content:
+    drawing = request.form.get('drawing', '')
+    drawing_filename = None
+
+    if drawing and drawing.startswith('data:image/png;base64,'):
+        import base64
+        img_data = base64.b64decode(drawing.split(',')[1])
+        drawing_filename = f"draw_{uuid.uuid4()}.png"
+        with open(os.path.join(app.config['UPLOAD_FOLDER'], drawing_filename), 'wb') as f:
+            f.write(img_data)
+
+    if content or drawing_filename:
         conn = get_db()
-        conn.execute('INSERT INTO sticky_notes (content, user_id) VALUES (?, ?)',
-                     (content, session['user_id']))
+        conn.execute('INSERT INTO sticky_notes (content, drawing_filename, user_id) VALUES (?, ?, ?)',
+                     (content, drawing_filename, session['user_id']))
         conn.commit()
         conn.close()
         flash('💌 Notita guardada', 'success')
@@ -179,6 +199,10 @@ def delete_sticky_note(note_id):
     conn = get_db()
     note = conn.execute('SELECT * FROM sticky_notes WHERE id = ?', (note_id,)).fetchone()
     if note and (session.get('role') == 'admin' or note['user_id'] == session['user_id']):
+        if note['drawing_filename']:
+            path = os.path.join(app.config['UPLOAD_FOLDER'], note['drawing_filename'])
+            if os.path.exists(path):
+                os.remove(path)
         conn.execute('DELETE FROM sticky_notes WHERE id = ?', (note_id,))
         conn.commit()
         flash('Notita eliminada', 'info')
@@ -195,10 +219,11 @@ def delete_letter(letter_id):
     conn = get_db()
     letter = conn.execute('SELECT * FROM letters WHERE id = ?', (letter_id,)).fetchone()
     if letter:
-        if letter['pdf_filename']:
-            path = os.path.join(app.config['UPLOAD_FOLDER'], letter['pdf_filename'])
-            if os.path.exists(path):
-                os.remove(path)
+        for f in ['pdf_filename', 'image_filename']:
+            if letter[f]:
+                path = os.path.join(app.config['UPLOAD_FOLDER'], letter[f])
+                if os.path.exists(path):
+                    os.remove(path)
         conn.execute('DELETE FROM letters WHERE id = ?', (letter_id,))
     conn.commit()
     conn.close()
