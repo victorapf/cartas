@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Cartas{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    {% if session.user_id %}
+    <nav class="nav">
+        <span class="nav-title">♥ Cartas ♥</span>
+        <div class="nav-links">
+            <span class="nav-user">{{ session.username }}</span>
+            <a href="{{ url_for('gallery') }}">Cartas</a>
+            {% if session.role == 'admin' %}<a href="{{ url_for('new_letter') }}">Nueva</a>{% endif %}
+            <a href="{{ url_for('logout') }}">Salir</a>
+        </div>
+    </nav>
+    {% endif %}
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div id="flash-container">
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

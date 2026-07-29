@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Carta #{{ letter.letter_number }}{% endblock %}
+{% block content %}
+<div class="letter-view">
+    <div class="letter-number">#{{ letter.letter_number }}</div>
+    <div class="letter-title">{{ letter.title }}</div>
+    <div class="letter-date">{{ letter.created_at[:10] }}</div>
+
+    {% if letter.content %}
+    <div class="letter-content">{{ letter.content }}</div>
+    {% endif %}
+
+    {% if letter.pdf_filename %}
+    <div class="pdf-container">
+        <embed src="{{ url_for('uploaded_file', filename=letter.pdf_filename) }}#view=FitH" type="application/pdf">
+    </div>
+    {% endif %}
+
+    <a href="{{ url_for('gallery') }}" class="back-link">← Volver al listado</a>
+</div>
+{% endblock %}
