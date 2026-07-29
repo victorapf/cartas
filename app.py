@@ -162,6 +162,13 @@ def view_letter(letter_id):
     return render_template('view.html', letter=letter)
 
 
+@app.route('/help')
+def help_page():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return render_template('help.html')
+
+
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Ayuda{% endblock %}
+{% block content %}
+<div class="letter-view">
+    <div class="letter-number" style="font-size:28px;">♥ Cómo usar ♥</div>
+    <div class="letter-title" style="font-size:11px;margin-bottom:20px;">Guía rápida para ti 💕</div>
+
+    <div class="letter-content" style="margin-bottom:20px;">
+        <p><strong>👀 Ver cartas</strong></p>
+        <p>En la página principal (Cartas) ves todas las cartas que te he escrito. Cada una tiene un número (#1, #2, #3...) y un título. Solo tienes que hacer clic en una para leerla.</p>
+        <p style="margin-top:15px;"><strong>💬 Dejar una notita</strong></p>
+        <p>Debajo de las cartas hay un cuadro donde puedes escribirme mensajes. También puedes hacer clic en "✏️ Dibujar" para dibujar algo con el mouse o el dedo (en el celular).</p>
+        <p style="margin-top:15px;"><strong>📱 En el celular</strong></p>
+        <p>Funciona perfecto en el teléfono. Puedes leer cartas, dejar notitas y dibujar con el dedo.</p>
+    </div>
+
+    <div style="background:var(--bg-card);border:3px solid var(--border);padding:20px;margin-bottom:20px;text-align:center;">
+        <p style="font-size:40px;margin-bottom:10px;">💕</p>
+        <p style="font-family:'Press Start 2P',cursive;font-size:9px;color:var(--pink);">Te amo mucho cielo ♥</p>
+    </div>
+
+    <a href="{{ url_for('gallery') }}" class="back-link">← Volver a las cartas</a>
+</div>
+{% endblock %}
