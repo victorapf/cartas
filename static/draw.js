@@ -70,7 +70,9 @@ function clearCanvas() {
 }
 
 function saveDrawing() {
-    document.getElementById('drawing-input').value = canvas.toDataURL('image/png');
+    if (canvas) {
+        document.getElementById('drawing-input').value = canvas.toDataURL('image/png');
+    }
 }
 
 function toggleCanvas() {
