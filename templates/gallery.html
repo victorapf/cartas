@@ -14,7 +14,7 @@
     <h2 style="font-family:'Press Start 2P',cursive;font-size:11px;color:var(--gold);margin-bottom:15px;">♥ Notitas ♥</h2>
     {% for note in notes %}
     <div class="sticky-note" style="background:var(--bg-card);border:3px solid var(--gold);padding:15px;margin-bottom:10px;position:relative;">
-        <div style="font-size:14px;color:var(--gold);margin-bottom:5px;">{{ note.username }} - {{ note.created_at[:10] }}</div>
+        <div style="font-size:14px;color:var(--gold);margin-bottom:5px;">{{ note.username }} - {{ note.created_at.strftime('%Y-%m-%d') }}</div>
         <div style="white-space:pre-wrap;margin-bottom:6px;">{{ note.content }}</div>
         {% if note.drawing_data %}
         <img src="{{ note.drawing_data }}" style="max-width:200px;max-height:120px;border:2px solid var(--border);display:block;margin-bottom:6px;">
@@ -54,7 +54,7 @@
     <a href="{{ url_for('view_letter', letter_id=letter.id) }}" class="letter-card">
         <div class="letter-number">#{{ letter.letter_number }}</div>
         <div class="letter-title">{{ letter.title }}</div>
-        <div class="letter-date">{{ letter.created_at[:10] }}</div>
+        <div class="letter-date">{{ letter.created_at.strftime('%Y-%m-%d') }}</div>
         {% if letter.pdf_data %}
         <span class="letter-badge">PDF</span>
         {% endif %}

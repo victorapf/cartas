@@ -4,7 +4,7 @@
 <div class="letter-view">
     <div class="letter-number">#{{ letter.letter_number }}</div>
     <div class="letter-title">{{ letter.title }}</div>
-    <div class="letter-date">{{ letter.created_at[:10] }}</div>
+    <div class="letter-date">{{ letter.created_at.strftime('%Y-%m-%d') }}</div>
 
     {% if letter.content %}
     <div class="letter-content">{{ letter.content }}</div>
