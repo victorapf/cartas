@@ -146,8 +146,8 @@ def new_letter():
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT COALESCE(MAX(letter_number), 0) + 1 FROM letters")
-        letter_number = cur.fetchone()['coalesce']
+        cur.execute("SELECT COALESCE(MAX(letter_number), 0) + 1 AS letter_number FROM letters")
+        letter_number = cur.fetchone()['letter_number']
         cur.execute(
             "INSERT INTO letters (letter_number, title, content, pdf_data, image_data, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
             (letter_number, title, content, pdf_data, image_data, session['user_id']))
