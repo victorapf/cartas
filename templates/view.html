@@ -10,15 +10,15 @@
     <div class="letter-content">{{ letter.content }}</div>
     {% endif %}
 
-    {% if letter.image_filename %}
+    {% if letter.image_data %}
     <div style="text-align:center;margin-bottom:20px;">
-        <img src="{{ url_for('uploaded_file', filename=letter.image_filename) }}" style="max-width:100%;max-height:500px;border:3px solid var(--border);">
+        <img src="{{ letter.image_data }}" style="max-width:100%;max-height:500px;border:3px solid var(--border);">
     </div>
     {% endif %}
 
-    {% if letter.pdf_filename %}
+    {% if letter.pdf_data %}
     <div class="pdf-container">
-        <embed src="{{ url_for('uploaded_file', filename=letter.pdf_filename) }}#view=FitH" type="application/pdf">
+        <embed src="{{ letter.pdf_data }}#view=FitH" type="application/pdf">
     </div>
     {% endif %}
 

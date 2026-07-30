@@ -16,8 +16,8 @@
     <div class="sticky-note" style="background:var(--bg-card);border:3px solid var(--gold);padding:15px;margin-bottom:10px;position:relative;">
         <div style="font-size:14px;color:var(--gold);margin-bottom:5px;">{{ note.username }} - {{ note.created_at[:10] }}</div>
         <div style="white-space:pre-wrap;margin-bottom:6px;">{{ note.content }}</div>
-        {% if note.drawing_filename %}
-        <img src="{{ url_for('uploaded_file', filename=note.drawing_filename) }}" style="max-width:200px;max-height:120px;border:2px solid var(--border);display:block;margin-bottom:6px;">
+        {% if note.drawing_data %}
+        <img src="{{ note.drawing_data }}" style="max-width:200px;max-height:120px;border:2px solid var(--border);display:block;margin-bottom:6px;">
         {% endif %}
         {% if session.role == 'admin' or session.user_id == note.user_id %}
         <form method="POST" action="{{ url_for('delete_sticky_note', note_id=note.id) }}" style="position:absolute;top:8px;right:8px;">
@@ -55,13 +55,13 @@
         <div class="letter-number">#{{ letter.letter_number }}</div>
         <div class="letter-title">{{ letter.title }}</div>
         <div class="letter-date">{{ letter.created_at[:10] }}</div>
-        {% if letter.pdf_filename %}
+        {% if letter.pdf_data %}
         <span class="letter-badge">PDF</span>
         {% endif %}
         {% if letter.content %}
         <span class="letter-badge" style="border-color:var(--gold);color:var(--gold)">TEXTO</span>
         {% endif %}
-        {% if letter.image_filename %}
+        {% if letter.image_data %}
         <span class="letter-badge" style="border-color:var(--pink);color:var(--pink)">📷</span>
         {% endif %}
         {% if session.role == 'admin' %}

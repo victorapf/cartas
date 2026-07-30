@@ -1,55 +1,58 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_from_directory, flash
-import sqlite3
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+import psycopg2
+import psycopg2.extras
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
-import uuid
+import base64
 
 app = Flask(__name__)
-app.secret_key = 'cartas-secret-key-change-in-prod'
-app.config['UPLOAD_FOLDER'] = 'uploads'
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+app.secret_key = os.environ.get('SECRET_KEY', 'cartas-secret-key-change-in-prod')
 
-DB_PATH = 'database.db'
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return psycopg2.connect(DATABASE_URL)
 
 
 def init_db():
     conn = get_db()
-    conn.executescript('''
+    cur = conn.cursor()
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL
-        );
+        )
+    ''')
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS letters (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             letter_number INTEGER NOT NULL,
             title TEXT NOT NULL,
             content TEXT,
-            pdf_filename TEXT,
-            image_filename TEXT,
+            pdf_data TEXT,
+            image_data TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             user_id INTEGER REFERENCES users(id)
-        );
+        )
+    ''')
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS sticky_notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            content TEXT NOT NULL,
-            drawing_filename TEXT,
+            id SERIAL PRIMARY KEY,
+            content TEXT,
+            drawing_data TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             user_id INTEGER REFERENCES users(id)
-        );
-    ''');
-    if not conn.execute('SELECT id FROM users WHERE username = ?', ('admin',)).fetchone():
-        conn.execute('INSERT INTO users (username, password) VALUES (?, ?)',
+        )
+    ''')
+    cur.execute("SELECT id FROM users WHERE username = %s", ('admin',))
+    if not cur.fetchone():
+        cur.execute("INSERT INTO users (username, password) VALUES (%s, %s)",
                      ('admin', generate_password_hash('admin')))
-    if not conn.execute('SELECT id FROM users WHERE username = ?', ('luisa',)).fetchone():
-        conn.execute('INSERT INTO users (username, password) VALUES (?, ?)',
+    cur.execute("SELECT id FROM users WHERE username = %s", ('luisa',))
+    if not cur.fetchone():
+        cur.execute("INSERT INTO users (username, password) VALUES (%s, %s)",
                      ('luisa', generate_password_hash('1234')))
     conn.commit()
     conn.close()
@@ -71,7 +74,9 @@ def login():
         username = request.form['username']
         password = request.form['password']
         conn = get_db()
-        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+        user = cur.fetchone()
         conn.close()
         if user and check_password_hash(user['password'], password):
             session['user_id'] = user['id']
@@ -93,12 +98,15 @@ def gallery():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     conn = get_db()
-    letters = conn.execute('SELECT * FROM letters ORDER BY letter_number DESC').fetchall()
-    notes = conn.execute('''
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT * FROM letters ORDER BY letter_number DESC")
+    letters = cur.fetchall()
+    cur.execute('''
         SELECT sn.*, u.username FROM sticky_notes sn
         JOIN users u ON sn.user_id = u.id
         ORDER BY sn.created_at DESC
-    ''').fetchall()
+    ''')
+    notes = cur.fetchall()
     conn.close()
     return render_template('gallery.html', letters=letters, notes=notes)
 
@@ -116,32 +124,33 @@ def new_letter():
             return render_template('editor.html', error='El título es obligatorio')
 
         content = request.form.get('content', '').strip()
-        pdf_filename = None
-        image_filename = None
+        pdf_data = None
+        image_data = None
 
         if 'pdf' in request.files:
             pdf = request.files['pdf']
             if pdf and pdf.filename:
-                ext = secure_filename(pdf.filename).rsplit('.', 1)[-1]
-                pdf_filename = f"{uuid.uuid4()}.{ext}"
-                pdf.save(os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename))
+                b64 = base64.b64encode(pdf.read()).decode()
+                pdf_data = f"data:application/pdf;base64,{b64}"
 
         if 'image' in request.files:
             img = request.files['image']
             if img and img.filename:
-                ext = secure_filename(img.filename).rsplit('.', 1)[-1]
-                image_filename = f"{uuid.uuid4()}.{ext}"
-                img.save(os.path.join(app.config['UPLOAD_FOLDER'], image_filename))
+                ext = img.filename.rsplit('.', 1)[-1].lower()
+                mime = f"image/{ext}" if ext in ('png', 'jpg', 'jpeg', 'gif', 'webp') else "image/png"
+                b64 = base64.b64encode(img.read()).decode()
+                image_data = f"data:{mime};base64,{b64}"
 
-        if not content and not pdf_filename and not image_filename:
+        if not content and not pdf_data and not image_data:
             return render_template('editor.html', error='Escribe algo o sube un archivo')
 
         conn = get_db()
-        max_num = conn.execute('SELECT MAX(letter_number) FROM letters').fetchone()[0]
-        letter_number = (max_num or 0) + 1
-        conn.execute(
-            'INSERT INTO letters (letter_number, title, content, pdf_filename, image_filename, user_id) VALUES (?, ?, ?, ?, ?, ?)',
-            (letter_number, title, content, pdf_filename, image_filename, session['user_id']))
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT COALESCE(MAX(letter_number), 0) + 1 FROM letters")
+        letter_number = cur.fetchone()['coalesce']
+        cur.execute(
+            "INSERT INTO letters (letter_number, title, content, pdf_data, image_data, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
+            (letter_number, title, content, pdf_data, image_data, session['user_id']))
         conn.commit()
         conn.close()
         flash('Carta guardada', 'success')
@@ -155,7 +164,9 @@ def view_letter(letter_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
     conn = get_db()
-    letter = conn.execute('SELECT * FROM letters WHERE id = ?', (letter_id,)).fetchone()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT * FROM letters WHERE id = %s", (letter_id,))
+    letter = cur.fetchone()
     conn.close()
     if not letter:
         return redirect(url_for('gallery'))
@@ -169,33 +180,22 @@ def help_page():
     return render_template('help.html')
 
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-
 @app.route('/sticky-note', methods=['POST'])
 def create_sticky_note():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     content = request.form.get('content', '').strip()
     drawing = request.form.get('drawing', '')
-    drawing_filename = None
+    drawing_data = drawing if drawing.startswith('data:') else None
 
-    if drawing and drawing.startswith('data:image/png;base64,'):
-        import base64
-        img_data = base64.b64decode(drawing.split(',')[1])
-        drawing_filename = f"draw_{uuid.uuid4()}.png"
-        with open(os.path.join(app.config['UPLOAD_FOLDER'], drawing_filename), 'wb') as f:
-            f.write(img_data)
-
-    if content or drawing_filename:
+    if content or drawing_data:
         conn = get_db()
-        conn.execute('INSERT INTO sticky_notes (content, drawing_filename, user_id) VALUES (?, ?, ?)',
-                     (content, drawing_filename, session['user_id']))
+        cur = conn.cursor()
+        cur.execute("INSERT INTO sticky_notes (content, drawing_data, user_id) VALUES (%s, %s, %s)",
+                     (content, drawing_data, session['user_id']))
         conn.commit()
         conn.close()
-        flash('💌 Notita guardada', 'success')
+        flash('Notita guardada', 'success')
     return redirect(url_for('gallery'))
 
 
@@ -204,15 +204,12 @@ def delete_sticky_note(note_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
     conn = get_db()
-    note = conn.execute('SELECT * FROM sticky_notes WHERE id = ?', (note_id,)).fetchone()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT * FROM sticky_notes WHERE id = %s", (note_id,))
+    note = cur.fetchone()
     if note and (session.get('role') == 'admin' or note['user_id'] == session['user_id']):
-        if note['drawing_filename']:
-            path = os.path.join(app.config['UPLOAD_FOLDER'], note['drawing_filename'])
-            if os.path.exists(path):
-                os.remove(path)
-        conn.execute('DELETE FROM sticky_notes WHERE id = ?', (note_id,))
+        cur.execute("DELETE FROM sticky_notes WHERE id = %s", (note_id,))
         conn.commit()
-        flash('Notita eliminada', 'info')
     conn.close()
     return redirect(url_for('gallery'))
 
@@ -224,14 +221,8 @@ def delete_letter(letter_id):
     if session.get('role') != 'admin':
         return redirect(url_for('gallery'))
     conn = get_db()
-    letter = conn.execute('SELECT * FROM letters WHERE id = ?', (letter_id,)).fetchone()
-    if letter:
-        for f in ['pdf_filename', 'image_filename']:
-            if letter[f]:
-                path = os.path.join(app.config['UPLOAD_FOLDER'], letter[f])
-                if os.path.exists(path):
-                    os.remove(path)
-        conn.execute('DELETE FROM letters WHERE id = ?', (letter_id,))
+    cur = conn.cursor()
+    cur.execute("DELETE FROM letters WHERE id = %s", (letter_id,))
     conn.commit()
     conn.close()
     flash('Carta eliminada', 'info')
