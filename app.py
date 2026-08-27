@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+import json
+import datetime
+from flask import Flask, render_template, request, redirect, url_for, session, flash, Response, abort
 import psycopg2
 import psycopg2.extras
 import os
@@ -227,6 +229,50 @@ def delete_letter(letter_id):
     conn.close()
     flash('Carta eliminada', 'info')
     return redirect(url_for('gallery'))
+
+
+@app.route('/export')
+def export_backup():
+    key = os.environ.get('EXPORT_KEY', '')
+    token = request.args.get('key', '')
+    if not key or token != key:
+        abort(404)
+
+    def default(o):
+        if isinstance(o, (datetime.datetime, datetime.date)):
+            return o.isoformat()
+        raise TypeError
+
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT * FROM letters ORDER BY letter_number DESC")
+    letters = [dict(r) for r in cur.fetchall()]
+    cur.execute("""
+        SELECT sn.*, u.username FROM sticky_notes sn
+        JOIN users u ON sn.user_id = u.id
+        ORDER BY sn.created_at DESC
+    """)
+    notes = [dict(r) for r in cur.fetchall()]
+    cur.execute("SELECT id, username FROM users")
+    users = [dict(r) for r in cur.fetchall()]
+    conn.close()
+
+    payload = json.dumps({
+        'exported_at': datetime.datetime.utcnow().isoformat(),
+        'users': users,
+        'letters': letters,
+        'sticky_notes': notes,
+    }, ensure_ascii=False, default=default, indent=2)
+
+    filename = 'cartas-backup-%s.json' % datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S')
+    return Response(
+        payload,
+        mimetype='application/json',
+        headers={
+            'Content-Disposition': 'attachment; filename="%s"' % filename,
+            'Cache-Control': 'no-store',
+        },
+    )
 
 
 if __name__ == '__main__':
