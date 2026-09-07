@@ -6,6 +6,7 @@ import psycopg2.extras
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
 import base64
+import whatsapp_notify
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'cartas-secret-key-change-in-prod')
@@ -151,11 +152,20 @@ def new_letter():
         cur.execute("SELECT COALESCE(MAX(letter_number), 0) + 1 AS letter_number FROM letters")
         letter_number = cur.fetchone()['letter_number']
         cur.execute(
-            "INSERT INTO letters (letter_number, title, content, pdf_data, image_data, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
+            "INSERT INTO letters (letter_number, title, content, pdf_data, image_data, user_id) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
             (letter_number, title, content, pdf_data, image_data, session['user_id']))
+        letter_id = cur.fetchone()['id']
         conn.commit()
         conn.close()
-        flash('Carta guardada', 'success')
+
+        notification_ok = whatsapp_notify.send_new_letter(
+            letter_id, letter_number, title, request.url_root)
+        if notification_ok:
+            flash('Carta guardada. Se notificó por WhatsApp 🎉', 'success')
+        elif whatsapp_notify.ENABLED:
+            flash('Carta guardada, pero no se pudo notificar por WhatsApp', 'warning')
+        else:
+            flash('Carta guardada', 'success')
         return redirect(url_for('gallery'))
 
     return render_template('editor.html')
@@ -229,6 +239,35 @@ def delete_letter(letter_id):
     conn.close()
     flash('Carta eliminada', 'info')
     return redirect(url_for('gallery'))
+
+
+@app.route('/wa')
+def wa_page():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    if session.get('role') != 'admin':
+        return redirect(url_for('gallery'))
+    status = whatsapp_notify.start_pairing()
+    return render_template('wa.html', wa=status)
+
+
+@app.route('/wa/status')
+def wa_status():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    if session.get('role') != 'admin':
+        return redirect(url_for('gallery'))
+    return render_template('wa.html', wa=whatsapp_notify.pairing_status())
+
+
+@app.route('/wa/close', methods=['POST'])
+def wa_close():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    if session.get('role') != 'admin':
+        return redirect(url_for('gallery'))
+    whatsapp_notify.close_pair()
+    return redirect(url_for('wa_page'))
 
 
 @app.route('/export')

@@ -14,7 +14,8 @@
         <div class="nav-links">
             <span class="nav-user">{{ session.username }}</span>
             <a href="{{ url_for('gallery') }}">Cartas</a>
-            {% if session.role == 'admin' %}<a href="{{ url_for('new_letter') }}">Nueva</a>{% endif %}
+            {% if session.role == 'admin' %}<a href="{{ url_for('new_letter') }}">Nueva</a>
+            <a href="{{ url_for('wa_page') }}">WhatsApp</a>{% endif %}
             <a href="{{ url_for('help_page') }}">Ayuda</a>
             <a href="{{ url_for('logout') }}">Salir</a>
         </div>

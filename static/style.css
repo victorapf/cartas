@@ -407,6 +407,11 @@ input[type="file"].form-control {
     border: 2px solid var(--cyan);
     color: #1565c0;
 }
+.flash-warning {
+    background: #fff8e1;
+    border: 2px solid #ffb300;
+    color: #e65100;
+}
 
 /* RESPONSIVE */
 @media (max-width: 600px) {

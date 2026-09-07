@@ -2,3 +2,4 @@ Flask>=3.0
 Werkzeug>=3.0
 gunicorn>=21.2
 psycopg2-binary>=2.9
+neonize>=0.4.3

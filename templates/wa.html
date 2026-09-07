@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}WhatsApp{% endblock %}
+{% block content %}
+<div class="letter-view">
+    <h1 class="pixel-font" style="text-align:center; font-size:16px; color: var(--gold); margin-bottom:30px;">
+        💌 WhatsApp
+    </h1>
+
+    {% if not wa.enabled %}
+    <div class="error">WhatsApp está desactivado. Configurá WA_ENABLED y los números en Render.</div>
+    {% endif %}
+
+    <div class="letter-content" style="text-align:center; margin-bottom:20px;">
+        <p style="margin-bottom:10px;">Número que envía: <strong>{{ wa.sender }}</strong></p>
+        <p style="margin-bottom:20px;">Número que recibe: <strong>{{ wa.recipient }}</strong></p>
+
+        {% if wa.connected %}
+            <p style="color: #2e7d32;">✅ Vinculado y conectado</p>
+        {% elif not wa.enabled %}
+            <p style="color: var(--text-dim);">Activá la notificación para continuar.</p>
+        {% else %}
+            {% if wa.qr %}
+                <p>Escaneá este código desde WhatsApp: <span class="pixel-font" style="font-size:9px;">Ajustes → Dispositivos vinculados → Vincular dispositivo</span></p>
+                <div style="text-align:center; margin:20px 0;">
+                    <img src="{{ wa.qr }}" style="image-rendering: auto; border:4px solid var(--border); background:#fff; max-width:280px; width:100%;">
+                </div>
+                <p style="color: var(--text-dim);">Si escaneaste pero no vinculaste aún, refrescá la página en un momento.</p>
+            {% else %}
+                <p>Generando el código QR… Refrescá esta página en unos segundos.</p>
+            {% endif %}
+        {% endif %}
+
+        {% if wa.error %}
+            <div class="error" style="margin-top:15px;">{{ wa.error }}</div>
+        {% endif %}
+    </div>
+
+    <div style="text-align:center; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        {% if not wa.connected and wa.enabled %}
+        <a class="btn btn-cyan" href="{{ url_for('wa_status') }}">Refrescar</a>
+        {% endif %}
+        <form method="post" action="{{ url_for('wa_close') }}" style="display:inline;">
+            <button class="btn btn-danger" type="submit">Cerrar conexión</button>
+        </form>
+        {% if wa.connected %}
+        <a class="btn btn-green" href="{{ url_for('gallery') }}">Volver a la galería</a>
+        {% endif %}
+    </div>
+
+    <p class="back-link"><a href="{{ url_for('gallery') }}">← Volver</a></p>
+</div>
+
+<script>
+    {% if wa.enabled and not wa.connected %}
+    setTimeout(function () { window.location.reload(); }, 4000);
+    {% endif %}
+</script>
+{% endblock %}
