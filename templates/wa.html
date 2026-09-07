@@ -31,7 +31,10 @@
         {% endif %}
 
         {% if wa.error %}
-            <div class="error" style="margin-top:15px;">{{ wa.error }}</div>
+            <div class="error" style="margin-top:15px; word-break:break-word;">{{ wa.error }}</div>
+            <form method="post" action="{{ url_for('wa_reset') }}" style="margin-top:15px; display:inline-block;">
+                <button class="btn btn-danger" type="submit">Borrar sesión y reiniciar</button>
+            </form>
         {% endif %}
     </div>
 

@@ -270,6 +270,16 @@ def wa_close():
     return redirect(url_for('wa_page'))
 
 
+@app.route('/wa/reset', methods=['POST'])
+def wa_reset():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    if session.get('role') != 'admin':
+        return redirect(url_for('gallery'))
+    whatsapp_notify.reset_session()
+    return redirect(url_for('wa_page'))
+
+
 @app.route('/export')
 def export_backup():
     key = os.environ.get('EXPORT_KEY', '')
