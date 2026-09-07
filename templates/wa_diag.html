@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Diagnóstico WhatsApp{% endblock %}
+{% block content %}
+<div class="letter-view">
+    <h1 class="pixel-font" style="text-align:center; font-size:16px; color: var(--gold); margin-bottom:30px;">
+        📡 Diagnóstico de conexión
+    </h1>
+
+    <div class="letter-content" style="margin-bottom:20px;">
+        <p style="margin-bottom:10px;">Verificado: <strong>{{ diag.checked_at }}</strong></p>
+        {% for r in diag.results %}
+        <p style="margin-bottom:8px;">
+            {% if r.ok %}✅{% else %}❌{% endif %}
+            <code>{{ r.host }}:{{ r.port }}</code>
+            <span class="{# texto #}" style="color: var(--text-dim);"> — {{ r.detail }}</span>
+        </p>
+        {% endfor %}
+        <p style="margin-top:15px;">
+            {% if diag.all_ok %}
+            <strong style="color: #2e7d32;">Todo el tráfico de red hacia WhatsApp está OK.</strong>
+            {% else %}
+            <strong style="color: #b71c1c;">Hay problemas de red hacia WhatsApp.</strong> Si esto aparece en Render,
+            probablemente la plataforma no permite la conexión y el QR jamás podrá generarse.
+            {% endif %}
+        </p>
+    </div>
+
+    <div style="text-align:center; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <a class="btn btn-cyan" href="{{ url_for('wa_diagnostic') }}">Repetir diagnóstico</a>
+        <a class="btn btn-green" href="{{ url_for('wa_page') }}">Volver a /wa</a>
+    </div>
+
+    <p class="back-link"><a href="{{ url_for('gallery') }}">← Volver</a></p>
+</div>
+{% endblock %}

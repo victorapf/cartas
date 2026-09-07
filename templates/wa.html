@@ -35,6 +35,11 @@
             <form method="post" action="{{ url_for('wa_reset') }}" style="margin-top:15px; display:inline-block;">
                 <button class="btn btn-danger" type="submit">Borrar sesión y reiniciar</button>
             </form>
+        {% elif wa.qr is none and not wa.connected %}
+            <div style="margin-top:15px; padding:10px; border:1px dashed var(--border); border-radius:6px; color: var(--text-dim); font-size:18px;">
+                💡 ¿Sigue sin aparecer el QR? Verificá que el servidor tenga salida a internet hacia WhatsApp:
+                <a class="btn btn-cyan" href="{{ url_for('wa_diagnostic') }}" style="margin-top:8px;">Diagnóstico de red</a>
+            </div>
         {% endif %}
     </div>
 

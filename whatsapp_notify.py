@@ -2,6 +2,7 @@ import base64
 import io
 import logging
 import os
+import socket
 import threading
 import time
 
@@ -16,6 +17,7 @@ SENDER = os.environ.get('WA_SENDER', '584244148836')
 RECIPIENT = os.environ.get('WA_RECIPIENT', '584141438927')
 SESSION_DB = os.environ.get('WA_SESSION', 'wa_session')
 ENABLED = os.environ.get('WA_ENABLED', '1') not in ('0', 'false', 'False')
+QR_TIMEOUT = float(os.environ.get('WA_QR_TIMEOUT', '20'))
 
 state = {
     'enabled': ENABLED,
@@ -27,6 +29,7 @@ state = {
     'error': None,
     'last_send': None,
     'last_send_ok': None,
+    'pairing_since': None,
 }
 
 _lock = threading.RLock()
@@ -34,6 +37,63 @@ _connected_wait = threading.Event()
 _qr_wait = threading.Event()
 
 _pair = {'client': None, 'thread': None, 'holder': None}
+
+
+_diag = {'at': 0.0, 'data': None}
+_diag_lock = threading.Lock()
+
+
+def network_diagnostic(timeout: float = 5.0, max_age: float = 15.0) -> dict:
+    """Comprueba si este servidor puede alcanzar los servidores de WhatsApp (con cache)."""
+    with _diag_lock:
+        if _diag['data'] is not None and (time.time() - _diag['at']) < max_age:
+            return _diag['data']
+    targets = [
+        ('g.whatsapp.net', 443),
+        ('web.whatsapp.com', 443),
+    ]
+    results = []
+    for host, port in targets:
+        try:
+            ip = socket.gethostbyname(host)
+        except OSError as exc:
+            results.append({'host': host, 'port': port, 'ok': False, 'detail': f'DNS: {exc}'})
+            continue
+        start = time.time()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        try:
+            sock.connect((ip, port))
+            results.append({'host': host, 'port': port, 'ok': True,
+                            'detail': f'{ip}:{port} TCP ok ({time.time()-start:.2f}s)'})
+        except OSError as exc:
+            results.append({'host': host, 'port': port, 'ok': False,
+                            'detail': f'{ip}:{port} -> {exc}'})
+        finally:
+            sock.close()
+    data = {'results': results,
+            'all_ok': all(r['ok'] for r in results),
+            'checked_at': time.strftime('%Y-%m-%d %H:%M:%S')}
+    with _diag_lock:
+        _diag['at'] = time.time()
+        _diag['data'] = data
+    return data
+
+
+def _maybe_qr_timeout():
+    if state['pairing'] and not state['qr'] and not state['connected']:
+        since = state.get('pairing_since') or time.time()
+        if time.time() - since > QR_TIMEOUT:
+            diag = network_diagnostic()
+            if not diag.get('all_ok'):
+                detalle = '; '.join(f"{d['host']}:{d['port']} {'OK' if d['ok'] else 'falla (' + d['detail'] + ')'}"
+                                    for d in diag['results'])
+                state['error'] = (f'No se recibió el QR de WhatsApp. Tu servidor no parece poder '
+                                  f'acceder a {detalle}.')
+            else:
+                state['error'] = ('No se recibió el QR de WhatsApp a tiempo (el servidor sí alcanza '
+                                  'los servidores de WhatsApp, pero la conexión no generó un QR). '
+                                  'Probá "Borrar sesión y reiniciar".')
 
 
 def _make_qr_png(qr_data: bytes) -> str:
@@ -50,6 +110,7 @@ def _build_client() -> NewClient:
     def on_qr(_client, qr_bytes):
         state['qr'] = _make_qr_png(qr_bytes)
         state['pairing'] = True
+        state['pairing_since'] = time.time()
         state['error'] = None
         _qr_wait.set()
 
@@ -57,6 +118,7 @@ def _build_client() -> NewClient:
         state['connected'] = True
         state['pairing'] = False
         state['qr'] = None
+        state['pairing_since'] = None
         _connected_wait.set()
         if _pair['client'] is _client:
             _close_pair_soon()
@@ -156,10 +218,11 @@ def reset_session():
     state['connected'] = False
     state['pairing'] = False
     state['qr'] = None
+    state['pairing_since'] = None
     return removed
 
 
-def start_pairing():
+def start_pairing(wait_first_qr: float = 10.0) -> dict:
     with _lock:
         _check_dead_thread()
         _connected_wait.clear()
@@ -167,7 +230,20 @@ def start_pairing():
         state['error'] = None
         if _pair['client'] is None:
             client = _build_client()
+            state['pairing'] = True
+            state['pairing_since'] = time.time()
             _start_thread(client)
+        first = dict(state)
+    if first['connected']:
+        return first
+    _qr_wait.wait(wait_first_qr)
+    with _lock:
+        _check_dead_thread()
+        holder = _pair.get('holder')
+        if holder and holder.get('done') and not state['error']:
+            state['error'] = 'La conexión terminó sin generar QR'
+    _maybe_qr_timeout()
+    with _lock:
         return dict(state)
 
 
@@ -177,6 +253,8 @@ def pairing_status() -> dict:
         holder = _pair.get('holder')
         if holder and holder.get('done'):
             state['error'] = state['error'] or 'La conexión terminó sin generar QR'
+    _maybe_qr_timeout()
+    with _lock:
         return dict(state)
 
 

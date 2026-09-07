@@ -1,4 +1,5 @@
 database.db
+wa_session*
 uploads/*
 !uploads/.gitkeep
 __pycache__/

@@ -248,7 +248,18 @@ def wa_page():
     if session.get('role') != 'admin':
         return redirect(url_for('gallery'))
     status = whatsapp_notify.start_pairing()
+    if not status.get('connected') and not status.get('qr') and not status.get('error'):
+        status['diag'] = whatsapp_notify.network_diagnostic()
     return render_template('wa.html', wa=status)
+
+
+@app.route('/wa/diagnostic')
+def wa_diagnostic():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    if session.get('role') != 'admin':
+        return redirect(url_for('gallery'))
+    return render_template('wa_diag.html', diag=whatsapp_notify.network_diagnostic())
 
 
 @app.route('/wa/status')
